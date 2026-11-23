@@ -1,0 +1,161 @@
+'use client'
+
+import { useState, useEffect } from 'react'
+import Link from 'next/link'
+import { useRouter } from 'next/navigation'
+import Header from '@/components/layout/Header'
+import Footer from '@/components/layout/Footer'
+import UploadForm from '@/components/UploadForm'
+import { supabase } from '@/lib/supabaseClient'
+import type { Database } from '@/types/supabase'
+import { useAuth } from '@/components/auth/AuthProvider'
+
+
+export default function ContributorUploadPage() {
+  const { user, loading: authLoading } = useAuth()
+  const router = useRouter()
+  const [successMessage, setSuccessMessage] = useState<string | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [isApproved, setIsApproved] = useState(false)
+  type Profile = Database['public']['Tables']['profiles']['Row']
+  const [profile, setProfile] = useState<Profile | null>(null)
+
+  useEffect(() => {
+    checkContributorStatus()
+  }, [])
+
+  const checkContributorStatus = async () => {
+    try {      
+      if (!user) {
+        router.push('/auth/signin')
+        return
+      }
+
+      const { data: profileData } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', user.id)
+        .single()
+
+      if (profileData) {
+        setProfile(profileData)
+        // Check if user is an approved contributor (role === 'contributor' or 'admin')
+        if (profileData.role === 'contributor' || profileData.role === 'admin') {
+          setIsApproved(true)
+        }
+      }
+    } catch (error) {
+      console.error('Error checking contributor status:', error)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleSuccess = (assetId: string) => {
+    setSuccessMessage('Asset uploaded successfully! Redirecting...')
+    setTimeout(() => {
+      router.push('/contributor/dashboard')
+    }, 2000)
+  }
+
+  const handleError = (error: string) => {
+    // Error is handled by UploadForm component
+    console.error('Upload error:', error)
+  }
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-50">
+        <Header />
+        <main className="container mx-auto px-4 py-8">
+          <div className="max-w-2xl mx-auto">
+            <div className="bg-white  rounded-2xl shadow-lg p-8 border border-gray-200 ">
+              <div className="flex items-center justify-center py-12">
+                <div className="w-8 h-8 border-2 border-gray-300 border-t-blue-600 rounded-full animate-spin"></div>
+              </div>
+            </div>
+          </div>
+        </main>
+        <Footer />
+      </div>
+    )
+  }
+
+  if (!isApproved) {
+    return (
+      <div className="min-h-screen bg-gray-50">
+        <Header />
+        <main className="container mx-auto px-3 sm:px-4 py-4 sm:py-6 md:py-8">
+          <div className="max-w-2xl mx-auto">
+            <div className="bg-white  rounded-2xl shadow-lg p-4 sm:p-6 md:p-8 border border-gray-200 ">
+              <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold text-gray-900  mb-4 sm:mb-6">
+                Upload Asset
+              </h1>
+              
+              <div className="bg-yellow-50  border-2 border-yellow-200  rounded-xl p-6 mb-6">
+                <h2 className="text-xl font-bold text-gray-900  mb-3">
+                  Contributor Access Required
+                </h2>
+                {!profile ? (
+                  <>
+                    <p className="text-gray-700  mb-4">
+                      You need to apply to become a contributor before you can upload assets.
+                    </p>
+                    <Link
+                      href="/become-contributor"
+                      className="inline-block px-6 py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-xl font-semibold hover:from-blue-700 hover:to-purple-700 transition-all"
+                    >
+                      Apply to Become a Contributor
+                    </Link>
+                  </>
+                ) : profile.role === 'user' ? (
+                  <>
+                    <p className="text-gray-700  mb-4">
+                      You need to apply to become a contributor before you can upload assets.
+                    </p>
+                    <Link
+                      href="/become-contributor"
+                      className="inline-block px-6 py-3 bg-gray-100  text-gray-900  rounded-xl font-semibold hover:bg-gray-200  transition-all"
+                    >
+                      Apply to Become a Contributor
+                    </Link>
+                  </>
+                ) : null}
+              </div>
+            </div>
+          </div>
+        </main>
+        <Footer />
+      </div>
+    )
+  }
+
+  return (
+    <div className="min-h-screen bg-gray-50">
+      <Header />
+
+      <main className="container mx-auto px-4 py-8">
+        <div className="max-w-2xl mx-auto">
+          <div className="bg-white rounded-2xl shadow-lg p-8 border border-gray-200">
+            <h1 className="text-4xl font-bold text-gray-900 mb-6">
+              Upload Asset
+            </h1>
+
+            {successMessage && (
+              <div className="mb-6 bg-green-50 border-2 border-green-200 rounded-xl p-4">
+                <p className="text-sm text-green-800">
+                  {successMessage}
+                </p>
+              </div>
+            )}
+
+            <UploadForm onSuccess={handleSuccess} onError={handleError} />
+          </div>
+        </div>
+      </main>
+
+      <Footer />
+    </div>
+  )
+}
+
